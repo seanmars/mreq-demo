@@ -1,0 +1,1853 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mreq 操作指南: 用 TODO CLI 觀察 mreq 怎麼運作</title>
+<style>
+:root {
+  --bg: #f7f4ec;
+  --surface: #fffdf8;
+  --paper: #efe9dc;
+  --text: #1d1b18;
+  --muted: #5c554b;
+  --rule: rgba(29, 27, 24, 0.14);
+  --rule-strong: rgba(29, 27, 24, 0.32);
+  --accent: #b42318;
+  --accent-soft: rgba(180, 35, 24, 0.07);
+  --accent-line: rgba(180, 35, 24, 0.35);
+  --ok: #2f6b3c;
+  --ok-soft: rgba(47, 107, 60, 0.09);
+  --info: #1f4f7a;
+  --info-soft: rgba(31, 79, 122, 0.08);
+  --warn: #8a5a00;
+  --warn-soft: rgba(176, 116, 0, 0.1);
+  --display: 'Noto Serif TC', 'Source Han Serif TC', 'Songti TC', 'Microsoft JhengHei', serif;
+  --body: 'Inter', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', 'Cascadia Code', Consolas, 'Microsoft JhengHei', monospace;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; scroll-padding-top: 32px; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 19px;
+  line-height: 1.85;
+  -webkit-font-smoothing: antialiased;
+}
+
+#progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 4px;
+  width: 0;
+  background: var(--accent);
+  z-index: 50;
+  transition: width 80ms linear;
+}
+
+a { color: var(--accent); text-underline-offset: 3px; }
+
+code {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  background: var(--paper);
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+kbd {
+  font-family: var(--mono);
+  font-size: 0.82em;
+  padding: 0.1em 0.5em;
+  border: 1px solid var(--rule-strong);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--surface);
+}
+
+.hero {
+  padding: 96px 24px 72px;
+  border-bottom: 1px solid var(--rule);
+  background:
+    radial-gradient(1200px 400px at 80% -10%, rgba(180, 35, 24, 0.06), transparent 60%),
+    var(--bg);
+}
+
+.hero-inner { max-width: 1180px; margin: 0 auto; }
+
+.hero-top {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 15px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  border-top: 5px solid var(--text);
+  border-bottom: 1px solid var(--rule);
+  padding: 10px 0;
+}
+
+.kicker {
+  font-family: var(--mono);
+  font-size: 15px;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.hero h1 {
+  font-family: var(--display);
+  font-size: clamp(44px, 6vw, 76px);
+  font-weight: 900;
+  line-height: 1.2;
+  margin: 48px 0 24px;
+  letter-spacing: 0.01em;
+}
+
+.hero h1 em { font-style: normal; color: var(--accent); }
+
+.hero .lead {
+  font-size: 22px;
+  color: var(--muted);
+  max-width: 760px;
+  margin: 0;
+}
+
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 36px;
+}
+
+.chip {
+  font-family: var(--mono);
+  font-size: 15px;
+  padding: 6px 14px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.layout {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 64px;
+}
+
+.toc {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: 100vh;
+  overflow-y: auto;
+  padding: 48px 0 32px;
+}
+
+.toc-title {
+  font-family: var(--mono);
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.toc ol { list-style: none; margin: 0; padding: 0; counter-reset: toc; }
+
+.toc li { counter-increment: toc; }
+
+.toc a {
+  display: flex;
+  gap: 10px;
+  padding: 7px 12px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--muted);
+  text-decoration: none;
+  border-left: 3px solid transparent;
+  transition: color 200ms, border-color 200ms, background 200ms;
+}
+
+.toc a::before {
+  content: counter(toc, decimal-leading-zero);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding-top: 2px;
+  color: var(--rule-strong);
+}
+
+.toc a:hover { color: var(--text); background: var(--accent-soft); }
+
+.toc a.active {
+  color: var(--text);
+  font-weight: 700;
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.toc a.active::before { color: var(--accent); }
+
+main { padding: 32px 0 120px; min-width: 0; }
+
+.prose { max-width: 820px; }
+
+section.chapter { padding-top: 64px; }
+
+section.chapter + section.chapter { border-top: 1px solid var(--rule); margin-top: 64px; }
+
+h2 {
+  font-family: var(--display);
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1.3;
+  margin: 12px 0 24px;
+}
+
+h3 {
+  font-size: 26px;
+  line-height: 1.4;
+  margin: 48px 0 16px;
+}
+
+h4 { font-size: 21px; margin: 28px 0 8px; }
+
+p { margin: 0 0 18px; }
+
+ul, ol { padding-left: 1.4em; margin: 0 0 18px; }
+
+li { margin-bottom: 6px; }
+
+strong { font-weight: 700; }
+
+.mark { background: linear-gradient(transparent 60%, rgba(180, 35, 24, 0.16) 60%); }
+
+.callout {
+  border-left: 5px solid var(--info);
+  background: var(--info-soft);
+  padding: 18px 24px;
+  margin: 24px 0;
+  border-radius: 0 8px 8px 0;
+}
+
+.callout > :last-child { margin-bottom: 0; }
+
+.callout-label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--info);
+  margin-bottom: 6px;
+}
+
+.callout.watch { border-color: var(--accent); background: var(--accent-soft); }
+.callout.watch .callout-label { color: var(--accent); }
+.callout.warn { border-color: var(--warn); background: var(--warn-soft); }
+.callout.warn .callout-label { color: var(--warn); }
+.callout.ok { border-color: var(--ok); background: var(--ok-soft); }
+.callout.ok .callout-label { color: var(--ok); }
+
+.steps { list-style: none; padding: 0; margin: 32px 0; counter-reset: step; }
+
+.steps > li {
+  counter-increment: step;
+  position: relative;
+  padding: 0 0 36px 76px;
+  margin: 0;
+}
+
+.steps > li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--text);
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 20px;
+}
+
+.steps > li::after {
+  content: '';
+  position: absolute;
+  left: 23px;
+  top: 54px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--rule);
+}
+
+.steps > li:last-child::after { display: none; }
+
+.steps > li.in-view::before { animation: pop 500ms var(--ease) both; }
+
+.step-title {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.5;
+  margin: 8px 0 10px;
+}
+
+@keyframes pop {
+  0% { transform: scale(0.6); background: var(--accent); color: #fff; border-color: var(--accent); }
+  60% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+.term {
+  margin: 20px 0 24px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+  box-shadow: 0 1px 0 rgba(29, 27, 24, 0.04), 0 12px 32px -18px rgba(29, 27, 24, 0.25);
+}
+
+.term-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.term-bar .dots { display: flex; gap: 6px; margin-right: 8px; }
+.term-bar .dots i { width: 11px; height: 11px; border-radius: 50%; background: var(--rule-strong); display: block; }
+.term-bar .title { flex: 1; }
+
+.term-btn {
+  font-family: var(--mono);
+  font-size: 13px;
+  border: 1px solid var(--rule-strong);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+}
+
+.term-btn:hover { background: var(--text); color: var(--surface); }
+
+.term pre {
+  margin: 0;
+  padding: 18px 22px;
+  font-family: var(--mono);
+  font-size: 16.5px;
+  line-height: 1.7;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.term .line { display: block; min-height: 1.7em; }
+.term .cmd::before { content: '$ '; color: var(--accent); font-weight: 700; }
+.term pre[data-shell="powershell"] .cmd::before { content: 'PS> '; }
+
+body[data-shell-pref="bash"] [data-shell="powershell"],
+body[data-shell-pref="powershell"] [data-shell="bash"] { display: none; }
+
+.shell-tabs {
+  display: inline-flex;
+  border: 1px solid var(--rule-strong);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.shell-tab {
+  font-family: var(--mono);
+  font-size: 13px;
+  border: 0;
+  background: var(--surface);
+  color: var(--muted);
+  padding: 3px 12px;
+  cursor: pointer;
+  transition: background 200ms, color 200ms;
+}
+
+.shell-tab + .shell-tab { border-left: 1px solid var(--rule-strong); }
+.shell-tab:hover { color: var(--text); }
+.shell-tab.active { background: var(--text); color: var(--surface); }
+.shell-switch .shell-tabs { margin-top: 4px; }
+.shell-switch .shell-tab { font-size: 15px; padding: 6px 18px; }
+.term .agent::before { content: '> '; color: var(--accent); font-weight: 700; }
+.term .out { color: var(--muted); }
+.term .hl { color: var(--accent); font-weight: 700; }
+.term .dim { color: rgba(29, 27, 24, 0.42); }
+
+.term.animate .line { opacity: 0; }
+.term.animate .line.shown { opacity: 1; transition: opacity 260ms; }
+
+.caret {
+  display: inline-block;
+  width: 0.6em;
+  height: 1.1em;
+  background: var(--accent);
+  vertical-align: -0.15em;
+  margin-left: 2px;
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink { 50% { opacity: 0; } }
+
+.flow-wrap {
+  margin: 28px 0;
+  padding: 28px;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.lane-label {
+  font-family: var(--mono);
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.flow {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 18px;
+  position: relative;
+  margin-bottom: 28px;
+}
+
+.flow::before {
+  content: '';
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 50%;
+  height: 2px;
+  background: var(--rule-strong);
+  z-index: 0;
+}
+
+.node {
+  position: relative;
+  z-index: 1;
+  padding: 14px 12px;
+  border: 2px solid var(--text);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: transform 300ms var(--ease), box-shadow 300ms, border-color 300ms, background 300ms;
+}
+
+.node.optional { border-style: dashed; border-color: var(--muted); }
+
+.node .no { font-family: var(--mono); font-size: 13px; color: var(--accent); font-weight: 700; }
+.node .cmd-name { display: block; font-family: var(--mono); font-size: 16px; font-weight: 700; margin-top: 2px; line-height: 1.4; }
+.node .cap { display: block; font-size: 14.5px; color: var(--muted); line-height: 1.5; margin-top: 4px; }
+
+.node.active {
+  transform: translateY(-6px);
+  border-color: var(--accent);
+  background: #fff7f4;
+  box-shadow: 0 14px 28px -16px rgba(180, 35, 24, 0.55);
+}
+
+.node:focus-visible { outline: 3px solid var(--accent-line); outline-offset: 3px; }
+
+.flow-detail {
+  min-height: 96px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--rule);
+  font-size: 18px;
+}
+
+.flow-detail strong { color: var(--accent); font-family: var(--mono); }
+
+.flow-detail .fade { animation: fadeUp 360ms var(--ease) both; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.flow-controls { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
+
+.ask {
+  margin: 22px 0 26px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 20px 22px;
+  box-shadow: 0 12px 32px -20px rgba(29, 27, 24, 0.3);
+}
+
+.ask-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+
+.ask-chip {
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--surface);
+}
+
+.ask-src { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+
+.ask-q { font-weight: 700; font-size: 19px; margin-bottom: 12px; line-height: 1.6; }
+
+.ask ol { list-style: none; padding: 0; margin: 0; counter-reset: opt; }
+
+.ask li {
+  counter-increment: opt;
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 4px 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  transition: border-color 300ms, background 300ms, transform 300ms var(--ease);
+}
+
+.ask li::before {
+  content: counter(opt);
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--muted);
+  grid-row: span 2;
+}
+
+.ask .opt-label { font-weight: 700; font-size: 17.5px; line-height: 1.5; }
+.ask .opt-desc { font-size: 15.5px; color: var(--muted); line-height: 1.6; }
+.ask .rec { font-family: var(--mono); font-size: 12.5px; color: var(--ok); margin-left: 6px; font-weight: 700; }
+
+.ask li.picked {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  transform: translateX(6px);
+}
+
+.ask li.picked::before { content: '▸'; color: var(--accent); }
+
+.ask-free { font-size: 15px; color: var(--muted); margin-top: 8px; font-style: italic; }
+
+.quads {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin: 24px 0;
+}
+
+.quad {
+  padding: 20px 22px;
+  border-top: 4px solid var(--text);
+  background: var(--surface);
+  border-radius: 0 0 10px 10px;
+  box-shadow: 0 10px 26px -20px rgba(29, 27, 24, 0.4);
+}
+
+.quad .q-no { font-family: var(--mono); font-size: 13px; letter-spacing: 0.12em; color: var(--accent); font-weight: 700; }
+.quad .q-name { font-family: var(--display); font-size: 26px; font-weight: 800; margin: 4px 0; }
+.quad .q-method { font-size: 16px; color: var(--muted); line-height: 1.6; }
+.quad .q-find { margin-top: 12px; padding-left: 14px; border-left: 4px solid var(--accent); font-size: 17px; line-height: 1.65; }
+
+.quads.reveal-stagger .quad { opacity: 0; transform: translateY(18px) scale(0.98); }
+.quads.reveal-stagger.in-view .quad { opacity: 1; transform: none; transition: opacity 600ms var(--ease), transform 600ms var(--ease); }
+.quads.reveal-stagger.in-view .quad:nth-child(2) { transition-delay: 350ms; }
+.quads.reveal-stagger.in-view .quad:nth-child(3) { transition-delay: 700ms; }
+.quads.reveal-stagger.in-view .quad:nth-child(4) { transition-delay: 1050ms; }
+
+.doc-viewer {
+  margin: 24px 0;
+  border: 1px solid var(--rule-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.doc-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+}
+
+.doc-tab {
+  flex: 1 1 auto;
+  font: inherit;
+  font-size: 15.5px;
+  padding: 10px 14px;
+  border: 0;
+  border-right: 1px solid var(--rule);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 200ms, color 200ms;
+}
+
+.doc-tab:last-child { border-right: 0; }
+.doc-tab:hover { color: var(--text); }
+.doc-tab.active { background: var(--surface); color: var(--text); font-weight: 700; box-shadow: inset 0 -3px 0 var(--accent); }
+
+.doc-path {
+  padding: 8px 18px;
+  font-family: var(--mono);
+  font-size: 13.5px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--rule);
+}
+
+.doc-body {
+  margin: 0;
+  padding: 18px 22px;
+  font-family: var(--mono);
+  font-size: 15.5px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  max-height: 560px;
+  overflow: auto;
+}
+
+.doc-body .fm, .doc-body .dim { color: var(--muted); }
+.doc-body .dim { font-style: italic; }
+.doc-body .h { color: var(--text); font-weight: 700; }
+.doc-body .chg { background: rgba(180, 35, 24, 0.1); border-radius: 3px; animation: flash 1.4s var(--ease) both; }
+.doc-body .tick { color: var(--ok); font-weight: 700; }
+
+@keyframes flash {
+  0% { background: rgba(180, 35, 24, 0.35); }
+  100% { background: rgba(180, 35, 24, 0.1); }
+}
+
+.doc-note {
+  padding: 12px 18px;
+  border-top: 1px solid var(--rule);
+  font-size: 16.5px;
+  background: var(--accent-soft);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0 28px;
+  font-size: 17.5px;
+}
+
+th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; line-height: 1.6; }
+
+th {
+  font-family: var(--mono);
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  border-bottom: 2px solid var(--text);
+  font-weight: 700;
+}
+
+details.spoiler {
+  margin: 24px 0;
+  border: 2px dashed var(--accent-line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+details.spoiler summary {
+  cursor: pointer;
+  padding: 16px 22px;
+  font-weight: 700;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+details.spoiler summary::-webkit-details-marker { display: none; }
+details.spoiler summary::before { content: '▸'; color: var(--accent); transition: transform 250ms var(--ease); }
+details.spoiler[open] summary::before { transform: rotate(90deg); }
+details.spoiler .spoiler-body { padding: 0 22px 18px; animation: fadeUp 400ms var(--ease) both; }
+
+.checklist { list-style: none; padding: 0; margin: 20px 0 28px; }
+
+.checklist li { margin: 0; }
+
+.checklist label {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 200ms;
+}
+
+.checklist label:hover { background: var(--accent-soft); }
+
+.checklist input {
+  appearance: none;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-top: 6px;
+  border: 2px solid var(--text);
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 200ms, border-color 200ms;
+}
+
+.checklist input::after {
+  content: '';
+  width: 6px;
+  height: 11px;
+  border: solid #fff;
+  border-width: 0 3px 3px 0;
+  transform: rotate(45deg) scale(0);
+  margin-top: -3px;
+  transition: transform 220ms var(--ease);
+}
+
+.checklist input:checked { background: var(--ok); border-color: var(--ok); }
+.checklist input:checked::after { transform: rotate(45deg) scale(1); }
+.checklist input:checked + span { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--rule-strong); }
+
+.demo-head {
+  display: flex;
+  align-items: stretch;
+  gap: 28px;
+  margin: 8px 0 28px;
+}
+
+.demo-no {
+  font-family: var(--display);
+  font-size: 120px;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--accent);
+  padding-right: 28px;
+  border-right: 1px solid var(--rule-strong);
+}
+
+.demo-head h2 { margin: 6px 0 12px; }
+
+.demo-cmd {
+  font-family: var(--mono);
+  font-size: 18px;
+  padding: 12px 18px;
+  background: var(--paper);
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.demo-cmd::before { content: '> '; color: var(--accent); font-weight: 700; }
+
+.meta-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 20px 0; }
+
+.card {
+  padding: 18px 22px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+}
+
+.card h4 { margin-top: 0; }
+.card > :last-child { margin-bottom: 0; }
+
+.reveal { opacity: 0; transform: translateY(22px); transition: opacity 700ms var(--ease), transform 700ms var(--ease); }
+.reveal.in-view { opacity: 1; transform: none; }
+
+.small-toc { display: none; }
+
+.foot {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 36px 24px 60px;
+  border-top: 1px solid var(--rule);
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--muted);
+}
+
+@media (max-width: 1100px) {
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .toc { display: none; }
+  .small-toc { display: block; margin-top: 32px; }
+  .small-toc summary { cursor: pointer; font-weight: 700; }
+}
+
+@media (max-width: 760px) {
+  body { font-size: 18px; }
+  .flow { grid-auto-flow: row; }
+  .flow::before { left: 50%; right: auto; top: 4%; bottom: 4%; width: 2px; height: auto; }
+  .quads, .grid-2 { grid-template-columns: 1fr; }
+  .demo-no { font-size: 72px; padding-right: 16px; }
+  .steps > li { padding-left: 62px; }
+  h2 { font-size: 32px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .reveal, .quads.reveal-stagger .quad { opacity: 1; transform: none; }
+  .term.animate .line { opacity: 1; }
+  html { scroll-behavior: auto; }
+}
+</style>
+</head>
+<body data-shell-pref="powershell">
+<div id="progress" aria-hidden="true"></div>
+
+<header class="hero">
+  <div class="hero-inner">
+    <div class="hero-top"><span>MREQ · HOW-TO</span><span>mreq-todo</span></div>
+    <h1>先講清楚, 再<em>動手</em>.<br>一步一步觀察 mreq.</h1>
+    <p class="lead">這份指南用一個很小的 TODO CLI, 帶你實際操作 mreq. 每一步都說明要輸入什麼, 會看到什麼, 以及為什麼 mreq 要這樣做.</p>
+    <div class="hero-meta">
+      <span class="chip">約 30 到 45 分鐘</span>
+      <span class="chip">3 個 Demo</span>
+      <span class="chip">Claude Code + mreq skills</span>
+      <span class="chip">Node 24</span>
+    </div>
+    <details class="small-toc">
+      <summary>目錄</summary>
+      <ol id="small-toc-list"></ol>
+    </details>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc" aria-label="目錄">
+    <div class="toc-title">CONTENTS</div>
+    <ol id="toc-list"></ol>
+  </nav>
+
+  <main>
+    <section class="chapter prose" id="why" data-title="為什麼需要 mreq">
+      <div class="kicker">00 · 問題</div>
+      <h2>一句需求, 藏著沒說出口的決策</h2>
+      <p>假設你對 agent 說: <strong>「待辦加上到期日.」</strong> 這句話看起來很清楚. 但是 agent 開始寫程式之前, 至少要決定下面三件事:</p>
+      <ul>
+        <li>「今天」以哪個時區為準?</li>
+        <li>舊的待辦沒有到期日, 讀取時怎麼處理?</li>
+        <li>過期要怎麼標示? 要不要排序?</li>
+      </ul>
+      <p>你沒說的事, agent 會自己決定. 它通常不會告訴你它做了什麼決定. 你只會在結果不符合預期時才發現.</p>
+      <div class="callout watch reveal">
+        <span class="callout-label">MREQ 的做法</span>
+        <p>mreq 是一組 skill. 它讓 agent <span class="mark">先問, 再做</span>. agent 先讀程式碼, 再用選項問你決策, 然後重述需求等你確認. 需求比較大時, 結論會寫成 <code>.mreq/</code> 下的一份文件. 這份文件是需求的單一來源, 也是給下一個 session 的交接單.</p>
+      </div>
+      <h3>你會在這份指南學到</h3>
+      <ol>
+        <li>小需求怎麼用 mreq 處理, 而且不產生文件.</li>
+        <li>完整流程: define, grill, apply, (commit), close.</li>
+        <li>修 bug 時, mreq 怎麼要求先重現, 再確認根因.</li>
+        <li>每一步要觀察的重點, 以及背後的原因.</li>
+      </ol>
+    </section>
+
+    <section class="chapter prose" id="skills" data-title="mreq 的 skill 與流程">
+      <div class="kicker">01 · 概念</div>
+      <h2>mreq 的 skill 與流程</h2>
+      <p>mreq 有 8 個 skill. 這份指南主要使用前 4 個. 「誰能呼叫」很重要: 只有使用者能呼叫的 skill, agent 不會自動執行. agent 只會給你完整的指令, 讓你自己輸入.</p>
+      <table>
+        <thead><tr><th>SKILL</th><th>作用</th><th>誰能呼叫</th></tr></thead>
+        <tbody>
+          <tr><td><code>mreq-define</code></td><td>判斷意圖, 訪談, 重述, 確認後寫文件. 小需求可以不寫文件, 直接實作.</td><td>只有使用者</td></tr>
+          <tr><td><code>mreq-grill</code></td><td>用四象限壓力測試文件, 把結論寫回文件.</td><td>使用者, agent</td></tr>
+          <tr><td><code>mreq-apply</code></td><td>逐項實作文件的 Tasks, 更新 checkbox 和 Handoff.</td><td>使用者, agent</td></tr>
+          <tr><td><code>mreq-close</code></td><td>核對程式碼與文件, 通過後刪除文件.</td><td>只有使用者</td></tr>
+          <tr><td><code>mreq-terms</code> / <code>mreq-pro</code></td><td>補術語, 加深 prompt. 想法還模糊時使用.</td><td>只有使用者</td></tr>
+          <tr><td><code>mreq-how</code> / <code>mreq-graph</code></td><td>產生解說程式碼或畫圖的離線 HTML. 不改程式碼.</td><td>只有使用者</td></tr>
+        </tbody>
+      </table>
+
+      <h3>互動流程圖</h3>
+      <p>流程圖會自動播放. 點任何一個節點, 可以停下來看那一步的說明. 虛線框是選用的步驟.</p>
+      <div class="flow-wrap reveal" id="flow">
+        <div class="lane-label">標準流程 · 產生 .mreq/ 文件</div>
+        <div class="flow" data-lane="full">
+          <button class="node" type="button" data-detail="<strong>/mreq-define</strong>: agent 先讀 README, CLAUDE.md 和相關程式碼. 然後分類需求 (feature / issue / refactor / task), 用選項訪談你, 最後重述需求. 你確認後, 它用 script 建立 <code>.mreq/&lt;時間&gt;-&lt;slug&gt;.md</code>, 再填入內容."><span class="no">01</span><span class="cmd-name">/mreq-define</span><span class="cap">訪談, 重述, 寫文件</span></button>
+          <button class="node optional" type="button" data-detail="<strong>mreq-grill</strong> (選用): 用四象限檢查文件. 已知的主張逐一對照程式碼, 開放問題用選項問你, 沒說出口的前提要你確認, 最後找盲點. 你確認重述後, 結論才寫回文件."><span class="no">02</span><span class="cmd-name">mreq-grill</span><span class="cap">四象限壓力測試</span></button>
+          <button class="node" type="button" data-detail="<strong>mreq-apply</strong>: 一次只做一個 task. 每個 task 都要執行某個指令證明它有效, 然後打勾, 重寫 Handoff, 更新時間. 全部完成而且測試通過, status 才會變成 <code>done</code>. 它不會自己 commit."><span class="no">03</span><span class="cmd-name">mreq-apply</span><span class="cap">逐項實作, 打勾</span></button>
+          <button class="node optional" type="button" data-detail="<strong>git commit</strong> (選用): 由你自己執行, 不是必要的步驟. 想保留文件時, 把程式碼和 <code>.mreq/</code> 文件一起 commit. 原因: 下一步 close 通過後會直接刪除文件, 不會問你."><span class="no">04</span><span class="cmd-name">git commit</span><span class="cap">程式碼與 .mreq/</span></button>
+          <button class="node" type="button" data-detail="<strong>/mreq-close</strong>: 只依照現在的文件和程式碼判斷, 不依照對話記憶. 它稽核 Goal, 每個 Decision 和每個打勾的 task, 執行文件指定的檢查. 沒有問題就刪除文件, 然後回報."><span class="no">05</span><span class="cmd-name">/mreq-close</span><span class="cap">核對後刪除文件</span></button>
+        </div>
+        <div class="lane-label">小需求 · 不寫文件</div>
+        <div class="flow" data-lane="small">
+          <button class="node" type="button" data-detail="<strong>/mreq-define</strong> (小需求): 需求只動到一個模組, 而且沒有延後的決策時, 確認選項會推薦「直接實作, 不寫文件」."><span class="no">01</span><span class="cmd-name">/mreq-define</span><span class="cap">重述, 確認</span></button>
+          <button class="node" type="button" data-detail="<strong>直接實作</strong>: 在同一個 session 完成. 重述就是紀錄, 所以不會產生 <code>.mreq/</code> 文件. 工作超出重述的範圍或中途停止時, define 會補寫文件."><span class="no">02</span><span class="cmd-name">直接實作</span><span class="cap">同一個 session</span></button>
+          <button class="node" type="button" data-detail="<strong>回報</strong>: agent 對照重述逐項回報: 完成, 部分完成, 做法不同, 或缺少, 並附上 <code>path:line</code>. 也會列出執行過的測試和結果."><span class="no">03</span><span class="cmd-name">回報</span><span class="cap">對照重述檢查</span></button>
+        </div>
+        <div class="flow-detail" id="flow-detail" aria-live="polite"></div>
+        <div class="flow-controls"><button class="term-btn" type="button" id="flow-toggle">暫停</button></div>
+      </div>
+      <div class="callout">
+        <span class="callout-label">自動接續</span>
+        <p>skill 之間能自動接續的地方, 你不需要輸入指令. 例如 define 的確認選項同時決定下一步: 選「寫文件, 然後 grill」, agent 寫完文件就直接開始 grill. 只有 <code>/mreq-define</code> 和 <code>/mreq-close</code> 這類「只有使用者」能呼叫的 skill 不會被自動接續.</p>
+      </div>
+    </section>
+
+    <section class="chapter prose" id="setup" data-title="準備環境">
+      <div class="kicker">02 · 準備</div>
+      <h2>準備環境</h2>
+      <div class="callout">
+        <span class="callout-label">選擇你的 shell</span>
+        <p>有些指令在 PowerShell 和 Bash 的寫法不同. 這些終端機區塊的標題列有 shell 分頁. 在任何一個地方切換, 整份文件都會一起切換, 並記住你的選擇.</p>
+        <div class="shell-switch"></div>
+      </div>
+      <h3>需要的工具</h3>
+      <ul>
+        <li><strong>Node.js 22.20 以上</strong> (建議 24). 專案本身需要 22.18 以上, 安裝 skill 用的 <code>npx skills</code> 需要 22.20 以上. 這個專案直接執行 <code>.ts</code>, 不需要編譯.</li>
+        <li><strong>uv</strong>, 或 <strong>Python 3.10 以上</strong>. mreq 的 script 用它來建立和更新文件. 沒有 uv 時, skill 會自動改用 python.</li>
+        <li><strong>git</strong> 和 <strong>Claude Code</strong>.</li>
+      </ul>
+      <ol class="steps">
+        <li>
+          <div class="step-title">在 demo 專案安裝 mreq skill</div>
+          <p>在 <code>mreq-demo</code> 目錄執行. 這個指令使用 <a href="https://github.com/vercel-labs/skills">vercel-labs/skills</a> CLI, 把全部 mreq skill 安裝到這個專案.</p>
+          <div class="term" data-copy>
+            <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">mreq-demo</span></div>
+            <pre><span class="line cmd">npx skills add seanmars/mreq --skill '*' -a claude-code</span></pre>
+          </div>
+          <ul>
+            <li><code>--skill '*'</code> 選擇全部 skill. mreq 的 skill 之間會自動接續, 例如 define 接 apply, 所以要全部安裝.</li>
+            <li><code>-a claude-code</code> 指定 agent. skill 會安裝到專案的 <code>.claude/skills/</code>.</li>
+            <li>不要加 <code>-g</code>. 這份指南假設 skill 安裝在專案內.</li>
+            <li>用這個方式安裝時, 指令沒有前綴, 直接輸入 <code>/mreq-define</code>.</li>
+          </ul>
+          <div class="callout warn">
+            <span class="callout-label">注意</span>
+            <p>已經用 Claude Code plugin 安裝過 mreq 時, 先移除 plugin. 兩種方式同時存在時, Claude Code 會載入兩份 skill. 安裝完成後才啟動 <code>claude</code>, 這樣它才會讀到新的 skill.</p>
+          </div>
+        </li>
+        <li>
+          <div class="step-title">安裝相依套件, 建立範例資料</div>
+          <p>在 <code>mreq-demo</code> 目錄執行:</p>
+          <div class="term animate" data-copy>
+            <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">mreq-demo</span></div>
+            <pre><span class="line cmd">npm install</span><span class="line cmd">npm run seed</span><span class="line out">已寫入 4 筆範例資料到 todo.json</span></pre>
+          </div>
+        </li>
+        <li>
+          <div class="step-title">確認起點是乾淨的</div>
+          <div class="term animate" data-copy>
+            <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">mreq-demo</span></div>
+            <pre><span class="line cmd">npm test</span><span class="line out">ℹ tests 9</span><span class="line out">ℹ pass 9</span><span class="line out">ℹ fail 0</span><span class="line cmd">npm run typecheck</span><span class="line cmd">git status --short</span><span class="line dim">(只有安裝 skill 產生的未追蹤檔案, 例如 .claude/ 和 skills-lock.json)</span></pre>
+          </div>
+          <p>專案的 <code>CLAUDE.md</code> 規定: <code>npm test</code> 與 <code>npm run typecheck</code> 都要通過. mreq 會讀這個檔案, 所以它驗證工作時也會使用這兩個指令.</p>
+        </li>
+        <li>
+          <div class="step-title">在 git root 啟動 Claude Code</div>
+          <div class="term" data-copy>
+            <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">mreq-demo</span></div>
+            <pre><span class="line cmd">claude</span></pre>
+          </div>
+          <div class="callout warn">
+            <span class="callout-label">注意</span>
+            <p>一定要在 <code>mreq-demo</code> 目錄 (git root) 啟動. <code>/mreq-define</code> 會先執行 <code>git rev-parse --show-toplevel</code>. 啟動目錄不是 git root 時, 它會告訴你原因, 然後停止. 原因: 文件寫在 <code>&lt;git root&gt;/.mreq/</code>, agent 在其他目錄可能無法在後續回合讀寫這份文件.</p>
+          </div>
+        </li>
+      </ol>
+      <div class="callout">
+        <span class="callout-label">建議的畫面配置</span>
+        <p>開兩個視窗: 左邊是 Claude Code, 右邊是編輯器 (例如 VS Code) 開著 <code>mreq-demo</code>. Demo 2 開始後, 在編輯器打開 <code>.mreq/</code> 下的文件. 你可以即時看到 agent 怎麼修改它.</p>
+      </div>
+    </section>
+
+    <section class="chapter prose" id="venue" data-title="認識 demo 專案">
+      <div class="kicker">03 · 場地</div>
+      <h2>認識 demo 專案: mreq-todo</h2>
+      <p>這是一個 TypeScript 寫的 TODO CLI. 它有 4 個指令: <code>add</code>, <code>list</code>, <code>done</code>, <code>rm</code>. 資料存在 <code>todo.json</code>, 也可以用 <code>TODO_FILE</code> 環境變數改路徑.</p>
+      <table>
+        <thead><tr><th>檔案</th><th>內容</th></tr></thead>
+        <tbody>
+          <tr><td><code>src/todo.ts</code></td><td><code>Todo</code> 型別和所有邏輯: 新增, 完成, 刪除, 篩選, 格式化.</td></tr>
+          <tr><td><code>src/store.ts</code></td><td>讀寫 JSON 檔.</td></tr>
+          <tr><td><code>src/cli.ts</code></td><td>解析參數, 呼叫上面兩個模組.</td></tr>
+          <tr><td><code>scripts/seed.ts</code></td><td>寫入 4 筆範例資料.</td></tr>
+          <tr><td><code>test/todo.test.ts</code></td><td>9 個測試, 全部通過.</td></tr>
+        </tbody>
+      </table>
+      <p>先執行一次, 看看真實的輸出:</p>
+      <div class="term animate" data-copy data-shells>
+        <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">mreq-demo</span></div>
+        <pre data-shell="powershell"><span class="line cmd">npm run todo -- list -- --all</span><span class="line out">[x]   1  買牛奶</span><span class="line out">[ ]   2  回覆客戶信件</span><span class="line out">[ ]   3  繳電話費</span><span class="line out">[ ]   3  準備週會簡報</span></pre>
+        <pre data-shell="bash"><span class="line cmd">npm run todo -- list --all</span><span class="line out">[x]   1  買牛奶</span><span class="line out">[ ]   2  回覆客戶信件</span><span class="line out">[ ]   3  繳電話費</span><span class="line out">[ ]   3  準備週會簡報</span></pre>
+      </div>
+      <div class="callout warn">
+        <span class="callout-label">為什麼 PowerShell 有兩個 --</span>
+        <p>在 PowerShell 中, <code>npm</code> 可能是 <code>npm.ps1</code> 這個 PowerShell script, 而 PowerShell 會吃掉第一個 <code>--</code>. 只寫一個 <code>--</code> 時, <code>--all</code> 會被 npm 當成自己的選項, 不會傳給 CLI. 所以 PowerShell 分頁中帶選項的指令有兩個 <code>--</code>.</p>
+        <p>Bash 和 zsh 不會吃掉 <code>--</code>, 所以只寫一個. cmd 也一樣, 請使用 Bash 分頁的 npm 指令. 寫錯時的症狀: <code>list</code> 只列出未完成的待辦, 少了「買牛奶」.</p>
+      </div>
+      <p>看起來很普通. 但是這個專案藏了<strong>兩個陷阱</strong>. 先仔細看上面的輸出和 <code>scripts/seed.ts</code>, 試著自己找出來. 然後再打開下面的答案.</p>
+      <details class="spoiler">
+        <summary>打開答案: 兩個陷阱</summary>
+        <div class="spoiler-body">
+          <h4>陷阱 1: 重複的 id (Demo 3 會修)</h4>
+          <p><code>src/todo.ts:16</code> 用 <code>id: todos.length + 1</code> 產生新 id. 刪除一筆之後再新增, 新的 id 會和現有的 id 重複. 輸出裡有兩筆 <code>#3</code>, 就是這個 bug 的結果. 而且 <code>done</code> 和 <code>rm</code> 會比對所有相同 id 的待辦, 所以 <code>done 3</code> 會同時勾掉兩筆.</p>
+          <h4>陷阱 2: UTC 與「今天」(Demo 2 的 grill 會找)</h4>
+          <p><code>createdAt</code> 存的是 UTC (<code>src/todo.ts:19</code>, <code>toISOString()</code>). 範例資料的第 4 筆是 <code>2026-11-24T16:30:00.000Z</code>. 這個時間在台灣已經是 11 月 25 日 00:30. 如果到期日的「今天」用 UTC 計算, 台灣的使用者在凌晨會看到錯誤的過期判斷.</p>
+        </div>
+      </details>
+      <div class="callout">
+        <span class="callout-label">為什麼要放陷阱</span>
+        <p>陷阱讓你可以檢查 mreq 的品質. 一個好的流程應該在寫程式之前, 就把這兩件事變成問題問你. 觀察 agent 有沒有找到它們, 比觀察它寫出什麼程式碼更重要.</p>
+      </div>
+    </section>
+
+    <section class="chapter prose" id="demo1" data-title="Demo 1: 小需求">
+      <div class="demo-head">
+        <div class="demo-no">1</div>
+        <div>
+          <div class="kicker">DEMO 1 · 小需求 · 約 5 分鐘</div>
+          <h2>小需求不寫文件, 直接做</h2>
+          <span class="demo-cmd">/mreq-define list 加上 --count 顯示總數</span>
+        </div>
+      </div>
+      <p>這個 Demo 的目的: 讓你看到 mreq 不是每次都要寫文件. 需求很小時, 它仍然會先確認, 但確認之後直接實作.</p>
+      <ol class="steps">
+        <li>
+          <div class="step-title">在 Claude Code 輸入指令</div>
+          <div class="term">
+            <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">claude · mreq-demo</span><button class="term-btn" type="button" data-copy-text="/mreq-define list 加上 --count 顯示總數">複製</button></div>
+            <pre><span class="line agent">/mreq-define list 加上 --count 顯示總數</span></pre>
+          </div>
+        </li>
+        <li>
+          <div class="step-title">觀察 agent 先讀, 再問</div>
+          <p>agent 不會馬上寫程式. 它會依序做這些事:</p>
+          <ul>
+            <li>執行 <code>git rev-parse --show-toplevel</code>, 確認 git root.</li>
+            <li>用 mreq 的 script 執行 <code>list --open</code>, 確認沒有已經在進行的文件.</li>
+            <li>讀 <code>README.md</code>, <code>CLAUDE.md</code>, <code>src/cli.ts</code>, <code>src/todo.ts</code> 和測試.</li>
+            <li>判斷需求的大小. 這個需求只動到 <code>list</code>, 所以是 <strong>Simple</strong>.</li>
+            <li>判斷需求的類型. 「加上」是新增行為, 所以是 <strong>feature</strong>.</li>
+          </ul>
+          <div class="callout">
+            <span class="callout-label">為什麼</span>
+            <p>規則是「程式碼能回答的問題, 不問使用者」. agent 先讀程式碼, 所以它問的問題會很具體, 而且只問程式碼無法決定的事.</p>
+          </div>
+        </li>
+        <li>
+          <div class="step-title">回答訪談問題</div>
+          <p>需求很清楚時, agent 可能不問任何問題. 有決策需要你做時, 它會用 <code>AskUserQuestion</code> 給你選項. 下面是可能出現的問題 (實際文字會不同):</p>
+          <div class="ask reveal" data-pick="0">
+            <div class="ask-head"><span class="ask-chip">範圍</span><span class="ask-src">AskUserQuestion</span></div>
+            <div class="ask-q">--count 和 --all / --done 一起使用時, 總數要算哪個範圍?</div>
+            <ol>
+              <li><span class="opt-label">跟著篩選<span class="rec">(Recommended)</span></span><span class="opt-desc">總數等於列出的筆數. 和現有的篩選行為一致.</span></li>
+              <li><span class="opt-label">一律算全部</span><span class="opt-desc">不管篩選條件, 都顯示全部待辦的數量.</span></li>
+              <li><span class="opt-label">只顯示數字</span><span class="opt-desc">加上 --count 時不列出待辦, 只印出數字.</span></li>
+            </ol>
+            <div class="ask-free">選項下方有文字欄. 沒有你要的答案時, 直接輸入.</div>
+          </div>
+          <p>注意選項的結構: 推薦的答案在第一個, 而且說明裡寫了推薦的原因. 決策不影響主要工作時, 最後會有「之後再決定」.</p>
+        </li>
+        <li>
+          <div class="step-title">檢查重述, 選擇下一步</div>
+          <p>agent 用自己的話重述需求. 重述有固定的欄位:</p>
+          <div class="term">
+            <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">claude · 重述 (範例)</span></div>
+            <pre><span class="line"><span class="hl">Type</span>: feature. list 增加新的輸出選項.</span><span class="line"><span class="hl">Goal</span>: list --count 在清單最後顯示列出的筆數.</span><span class="line"><span class="hl">Problem</span>: 現在 list 只列出待辦, 沒有總數.</span><span class="line"><span class="hl">Decided</span>: 總數跟著 --all / --done 篩選.</span><span class="line"><span class="hl">Out of scope</span>: 其他指令的輸出.</span><span class="line"><span class="hl">Assumptions</span>: (猜測) 沒有待辦時, 維持顯示 (沒有待辦).</span></pre>
+          </div>
+          <p>接著 agent 問一個問題. 這個答案同時代表「確認重述」和「選擇下一步」:</p>
+          <div class="ask reveal" data-pick="0">
+            <div class="ask-head"><span class="ask-chip">確認</span><span class="ask-src">AskUserQuestion</span></div>
+            <div class="ask-q">上面的重述正確嗎? 接下來要怎麼做?</div>
+            <ol>
+              <li><span class="opt-label">正確, 直接實作, 不寫文件<span class="rec">(Recommended)</span></span><span class="opt-desc">小需求. 在這個 session 完成, 不產生 .mreq/ 文件.</span></li>
+              <li><span class="opt-label">正確, 先 grill, 不寫文件</span><span class="opt-desc">先用四象限檢查重述, 然後再重述一次.</span></li>
+              <li><span class="opt-label">正確, 寫文件再實作</span><span class="opt-desc">產生文件, 然後交給 mreq-apply.</span></li>
+              <li><span class="opt-label">有地方不對</span><span class="opt-desc">選出不對的項目, agent 會再問, 然後重新重述.</span></li>
+            </ol>
+          </div>
+          <p>選 <strong>第 1 個</strong>.</p>
+          <div class="callout watch">
+            <span class="callout-label">觀察重點</span>
+            <p>小需求才會出現「不寫文件」的選項組. 條件是需求為 Simple, 而且 <strong>Open</strong> (延後的決策) 是空的. 如果你在訪談時選了「之後再決定」, 這組選項就不會出現.</p>
+          </div>
+        </li>
+        <li>
+          <div class="step-title">觀察實作與回報</div>
+          <p>agent 先用一則短訊息列出 tasks, 每個 task 附上檢查方法. 然後一次做一個 task. 每個 task 都要執行某個指令來證明: 只讀程式碼不算證明.</p>
+          <p>完成後, agent 對照重述回報: Goal 和每個 Decided 項目是「完成, 部分完成, 做法不同, 或缺少」, 附上 <code>path:line</code>. 它也會列出執行過的測試和結果.</p>
+        </li>
+        <li>
+          <div class="step-title">自己驗證結果</div>
+          <div class="term animate" data-copy data-shells>
+            <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">mreq-demo (範例輸出)</span></div>
+            <pre data-shell="powershell"><span class="line cmd">npm run todo -- list -- --count</span><span class="line out">[ ]   2  回覆客戶信件</span><span class="line out">[ ]   3  繳電話費</span><span class="line out">[ ]   3  準備週會簡報</span><span class="line out">共 3 筆</span><span class="line cmd">git status --short</span><span class="line out"> M src/cli.ts</span><span class="line out"> M test/todo.test.ts</span></pre>
+            <pre data-shell="bash"><span class="line cmd">npm run todo -- list --count</span><span class="line out">[ ]   2  回覆客戶信件</span><span class="line out">[ ]   3  繳電話費</span><span class="line out">[ ]   3  準備週會簡報</span><span class="line out">共 3 筆</span><span class="line cmd">git status --short</span><span class="line out"> M src/cli.ts</span><span class="line out"> M test/todo.test.ts</span></pre>
+          </div>
+          <p><code>git status</code> 裡<strong>沒有 <code>.mreq/</code></strong>. 這證明小需求流程不產生文件. 實際修改的檔案和輸出格式, 取決於你在訪談時的選擇. 你也會看到安裝 skill 產生的未追蹤檔案, 例如 <code>.claude/</code>. 這些檔案不是 agent 修改的.</p>
+        </li>
+      </ol>
+      <h3>Demo 1 檢查清單</h3>
+      <ul class="checklist" data-store="demo1">
+        <li><label><input type="checkbox"><span>agent 在寫程式之前先重述需求.</span></label></li>
+        <li><label><input type="checkbox"><span>確認選項的第一個是「直接實作, 不寫文件」, 而且標示 Recommended.</span></label></li>
+        <li><label><input type="checkbox"><span>agent 執行了測試, 而且回報裡有 <code>path:line</code>.</span></label></li>
+        <li><label><input type="checkbox"><span><code>git status</code> 沒有出現 <code>.mreq/</code>.</span></label></li>
+      </ul>
+      <div class="callout ok">
+        <span class="callout-label">進入下一個 Demo 之前</span>
+        <p>保留或捨棄 Demo 1 的修改都可以. 想從乾淨的狀態開始, 請看最後一章「重置 demo」.</p>
+      </div>
+    </section>
+
+    <section class="chapter prose" id="demo2" data-title="Demo 2: 完整流程">
+      <div class="demo-head">
+        <div class="demo-no">2</div>
+        <div>
+          <div class="kicker">DEMO 2 · FEATURE · 約 15 分鐘</div>
+          <h2>加上到期日: 完整流程</h2>
+          <span class="demo-cmd">/mreq-define 待辦加上到期日, 過期要標示</span>
+        </div>
+      </div>
+      <p>這是主要的 Demo. 你會走完 define, grill, apply, close 四個步驟, 中間可以選擇 commit. 這個需求會改到型別, 儲存資料, CLI 參數和輸出格式, 而且有好幾個決策要做. 所以 mreq 會建議寫文件.</p>
+
+      <h3>步驟 A: define, 訪談與重述</h3>
+      <ol class="steps">
+        <li>
+          <div class="step-title">輸入指令</div>
+          <div class="term">
+            <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">claude · mreq-demo</span><button class="term-btn" type="button" data-copy-text="/mreq-define 待辦加上到期日, 過期要標示">複製</button></div>
+            <pre><span class="line agent">/mreq-define 待辦加上到期日, 過期要標示</span></pre>
+          </div>
+        </li>
+        <li>
+          <div class="step-title">觀察 agent 怎麼讀程式碼</div>
+          <p>需求被判斷為 <strong>Complex</strong> 時, agent 會把閱讀工作分成 2 到 4 個角度, 例如「需求改到的程式碼和呼叫者」與「測試和執行方式」. 在 Claude Code 中, 你可能會看到它同時啟動幾個唯讀的 explorer subagent. 判斷為 Simple 時, 它會自己讀.</p>
+          <p>兩種情況都可以. 重點是: 它讀完之後才開始問問題.</p>
+        </li>
+        <li>
+          <div class="step-title">回答訪談問題</div>
+          <p>feature 的訪談順序是: 完成的狀態, 誰使用, 什麼不在範圍內, 錯誤情況, 什麼資料要保存. agent 會一次問最多 4 個互相獨立的問題. 你可能會看到:</p>
+          <div class="grid-2">
+            <div class="card"><h4>日期格式</h4><p><code>--due 2026-12-01</code>? 還是也接受 <code>明天</code> 這類寫法?</p></div>
+            <div class="card"><h4>過期的顯示</h4><p>在行尾加上文字標示? 還是改變排序?</p></div>
+            <div class="card"><h4>無效的日期</h4><p>輸入 <code>2026-13-40</code> 時, 要報錯還是忽略?</p></div>
+            <div class="card"><h4>舊資料</h4><p>現有的待辦沒有 <code>due</code> 欄位. 視為「沒有到期日」嗎?</p></div>
+          </div>
+          <p>每個問題的推薦答案都在第一個. 想延後的決策, 選「之後再決定」. 延後的決策會寫進文件的 <code>## Open</code>, agent 不會再問.</p>
+        </li>
+        <li>
+          <div class="step-title">確認重述, 選「寫文件, 然後 grill」</div>
+          <p>這次的確認選項是「寫文件」的選項組:</p>
+          <div class="ask reveal" data-pick="0">
+            <div class="ask-head"><span class="ask-chip">確認</span><span class="ask-src">AskUserQuestion</span></div>
+            <div class="ask-q">上面的重述正確嗎? 接下來要怎麼做?</div>
+            <ol>
+              <li><span class="opt-label">正確, 寫文件, 然後 grill<span class="rec">(Recommended)</span></span><span class="opt-desc">計畫還沒經過檢查. 先壓力測試, 再實作.</span></li>
+              <li><span class="opt-label">正確, 寫文件, 然後實作</span><span class="opt-desc">寫完文件直接交給 mreq-apply.</span></li>
+              <li><span class="opt-label">正確, 只寫文件</span><span class="opt-desc">寫完文件就停止. 適合交給下一個 session.</span></li>
+              <li><span class="opt-label">有地方不對</span><span class="opt-desc">選出不對的項目, 回到訪談.</span></li>
+            </ol>
+          </div>
+          <div class="callout watch">
+            <span class="callout-label">觀察重點</span>
+            <p>計畫感覺還沒經過檢查時, mreq 會把「寫文件, 然後 grill」放在第一個並推薦它. 選項文字每次都由 agent 重新撰寫, 但意思不變.</p>
+          </div>
+        </li>
+      </ol>
+
+      <h3>步驟 B: 文件誕生, 並隨著工作改變</h3>
+      <p>你確認後, agent 用 script 執行 <code>new</code>, 在 git root 建立文件, 再用 Edit 逐段填入內容. 立刻在編輯器打開這個檔案.</p>
+      <p>下面的檢視器模擬這份文件在每個階段的樣子. 點上方的分頁切換階段, 或等它自動播放. <span class="mark">紅色底色</span>是這個階段改變的部分.</p>
+      <div class="doc-viewer reveal" id="doc-viewer">
+        <div class="doc-tabs" role="tablist">
+          <button class="doc-tab active" type="button" data-stage="0">① define 後</button>
+          <button class="doc-tab" type="button" data-stage="1">② grill 後</button>
+          <button class="doc-tab" type="button" data-stage="2">③ apply 進行中</button>
+          <button class="doc-tab" type="button" data-stage="3">④ apply 完成</button>
+        </div>
+        <div class="doc-path">.mreq/20261125-153012-todo-due-date.md (檔名為範例)</div>
+        <pre class="doc-body" id="doc-body"></pre>
+        <div class="doc-note" id="doc-note"></div>
+      </div>
+      <div class="callout">
+        <span class="callout-label">文件的規則</span>
+        <ul>
+          <li>front matter (<code>---</code> 之間的欄位) 由 script 負責. agent 不會手寫日期或狀態.</li>
+          <li><code>##</code> 標題固定不變, 因為其他 mreq skill 用這些標題找內容.</li>
+          <li>猜測寫在 <code>## Assumptions</code>, 而且標示為猜測. 猜測永遠不會被當成決策.</li>
+          <li>每個 task 都寫了檢查方法.</li>
+        </ul>
+      </div>
+
+      <h3>步驟 C: grill, 四象限壓力測試</h3>
+      <p>因為你選了「寫文件, 然後 grill」, agent 寫完文件後會自動開始 <code>mreq-grill</code>. 它依照下面的順序掃描四個象限, 並分開回報. 後兩個象限藏著真正的風險.</p>
+      <div class="quads reveal-stagger">
+        <div class="quad"><div class="q-no">01 · KNOWN KNOWNS</div><div class="q-name">已知的已知</div><div class="q-method">文件依賴的主張. 逐一對照程式碼驗證.</div><div class="q-find">「資料存在 <code>todo.json</code>」: 成立, 見 <code>src/store.ts</code>.</div></div>
+        <div class="quad"><div class="q-no">02 · KNOWN UNKNOWNS</div><div class="q-name">已知的未知</div><div class="q-method">開放問題. 用選項問你, 可以選「先保留」.</div><div class="q-find">過期的待辦要不要排在前面?</div></div>
+        <div class="quad"><div class="q-no">03 · UNKNOWN KNOWNS</div><div class="q-name">未知的已知</div><div class="q-method">沒說出口的前提. 用「成立 / 不成立」請你確認.</div><div class="q-find">舊資料沒有 <code>due</code> 欄位, 讀取時必須相容.</div></div>
+        <div class="quad"><div class="q-no">04 · UNKNOWN UNKNOWNS</div><div class="q-name">未知的未知</div><div class="q-method">盲點. 問「什麼情況會讓它失敗?」</div><div class="q-find"><code>createdAt</code> 是 UTC. 台灣凌晨 00:30 時, 「今天」怎麼算?</div></div>
+      </div>
+      <ol class="steps">
+        <li>
+          <div class="step-title">回答 grill 的問題</div>
+          <p>確認前提時, 選項是「成立」和「不成立」. 推薦的那一個會附上原因. 例如:</p>
+          <div class="ask reveal" data-pick="0">
+            <div class="ask-head"><span class="ask-chip">時區</span><span class="ask-src">AskUserQuestion</span></div>
+            <div class="ask-q">「今天」以執行 CLI 的電腦的本地時區為準. 這個前提成立嗎?</div>
+            <ol>
+              <li><span class="opt-label">成立<span class="rec">(Recommended)</span></span><span class="opt-desc">CLI 在使用者自己的電腦執行. 本地時區符合使用者對「今天」的認知.</span></li>
+              <li><span class="opt-label">不成立</span><span class="opt-desc">需要固定時區, 例如一律使用 Asia/Taipei.</span></li>
+            </ol>
+          </div>
+        </li>
+        <li>
+          <div class="step-title">確認 grill 的重述</div>
+          <p>grill 會重述四件事: 成立和不成立的主張, 變明確的前提, 做出的決策 (附原因和被排除的選項), 仍未決定的事. 然後問你下一步:</p>
+          <div class="ask reveal" data-pick="0">
+            <div class="ask-head"><span class="ask-chip">確認</span><span class="ask-src">AskUserQuestion</span></div>
+            <div class="ask-q">grill 的結論正確嗎? 接下來要怎麼做?</div>
+            <ol>
+              <li><span class="opt-label">正確, 寫回文件, 然後實作<span class="rec">(Recommended)</span></span><span class="opt-desc">寫回後交給 mreq-apply.</span></li>
+              <li><span class="opt-label">正確, 寫回文件, 停在這裡</span><span class="opt-desc">寫回後停止.</span></li>
+              <li><span class="opt-label">正確, 寫回文件, 繼續 grill</span><span class="opt-desc">下一輪只檢查有變更的項目和仍未決的項目.</span></li>
+              <li><span class="opt-label">有地方不對</span><span class="opt-desc">不寫入任何內容. 選出不對的項目, 再 grill 一輪.</span></li>
+            </ol>
+          </div>
+          <p>選 <strong>第 1 個</strong>. 回到上面的文件檢視器, 切到「② grill 後」, 對照你的編輯器.</p>
+        </li>
+      </ol>
+      <div class="callout watch">
+        <span class="callout-label">觀察重點</span>
+        <ul>
+          <li>agent 有沒有自己找到時區問題? 沒有的話, 在「有地方不對」或文字欄直接指出來.</li>
+          <li>你確認之前, grill 不會修改文件. 用「有地方不對」時, 它也不寫入任何內容.</li>
+          <li>決策被推翻時, 文件會保留紀錄: <code>Changed by grill: &lt;原本的內容&gt;</code>.</li>
+        </ul>
+      </div>
+
+      <h3>步驟 D: apply, 逐項實作</h3>
+      <ol class="steps">
+        <li>
+          <div class="step-title">先看進度</div>
+          <p><code>mreq-apply</code> 啟動後, 第一則訊息一定是 script 的 <code>progress</code> 輸出, 原樣複製:</p>
+          <div class="term animate">
+            <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">claude · mreq-apply</span></div>
+            <pre><span class="line out">Using: D:/workspace/.../mreq-demo/.mreq/20261125-153012-todo-due-date.md</span><span class="line out">feature: 0/5 tasks done. Next: 1. Todo 加上選填的 due 欄位</span><span class="line out">Status: draft</span><span class="line">先把狀態改成 active, 然後從 task 1 開始.</span></pre>
+          </div>
+          <p>接著 status 會從 <code>draft</code> 變成 <code>active</code>. agent 也會執行 <code>git status</code> 和 <code>git diff</code>, 檢查有沒有 Handoff 沒提到的修改.</p>
+        </li>
+        <li>
+          <div class="step-title">看著 checkbox 一個一個打勾</div>
+          <p>每個 task 的循環固定是: 重讀 Goal 和 Decisions, 做最小的修改, 執行指令證明, 打勾, 重寫 Handoff, 執行 <code>update</code>. 兩次打勾之間, 一定有一次 Handoff 重寫.</p>
+          <p>在編輯器保持文件開著. 你會看到 checkbox 和 <code>## Handoff</code> 隨著工作更新. 文件檢視器的「③ apply 進行中」模擬這個狀態.</p>
+        </li>
+        <li>
+          <div class="step-title">(選做) 實驗: 中斷後接續</div>
+          <p>這個實驗展示文件為什麼是交接單.</p>
+          <ol>
+            <li>apply 做到一半時, 按 <kbd>Esc</kbd> 中斷 agent.</li>
+            <li>輸入「先暫停, 之後再繼續」. mreq-apply 規定停止時要先寫紀錄再回覆, 所以 agent 會更新文件.</li>
+            <li>觀察文件: 下一個未完成的 task 下方出現 <code>- Resume: &lt;已完成&gt;; &lt;剩下的&gt;; &lt;下一步&gt;</code>. 你說的話也會寫進這一行.</li>
+            <li>輸入 <code>/clear</code>, 開始新的對話.</li>
+            <li>輸入 <code>/mreq-apply</code>. 只有一份進行中的文件時, 它直接接續, 不用給路徑.</li>
+            <li>觀察: 新的 session 從 Resume 那一行接續, 而不是從頭開始.</li>
+          </ol>
+        </li>
+        <li>
+          <div class="step-title">完成</div>
+          <p>全部 task 打勾, 而且相關測試通過後, status 才會變成 <code>done</code>. 測試沒有執行就不算通過. 最後 agent 會告訴你執行 <code>/mreq-close &lt;path&gt;</code>. 它不會自己執行, 因為 close 只有使用者能呼叫.</p>
+        </li>
+      </ol>
+
+      <h3>步驟 E: commit (選用)</h3>
+      <p>這一步不是必要的. 想保留文件時, 由你自己執行. <code>mreq-apply</code> 不會自己 commit.</p>
+      <div class="term animate" data-copy>
+        <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">mreq-demo</span></div>
+        <pre><span class="line cmd">git add -A</span><span class="line cmd">git commit -m "feat: 待辦加上到期日"</span></pre>
+      </div>
+      <div class="callout warn">
+        <span class="callout-label">要保留文件, 先 commit</span>
+        <p><code>/mreq-close</code> 核對通過後會直接刪除文件. 它刪除前不檢查 git 狀態, 也不詢問. 要保留文件的內容, 請先把 <code>.mreq/</code> 一起 commit.</p>
+      </div>
+
+      <h3>步驟 F: close, 核對後刪除</h3>
+      <ol class="steps">
+        <li>
+          <div class="step-title">輸入指令</div>
+          <div class="term">
+            <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">claude · mreq-demo</span><button class="term-btn" type="button" data-copy-text="/mreq-close">複製</button></div>
+            <pre><span class="line agent">/mreq-close</span><span class="line out">Closing: D:/workspace/.../mreq-demo/.mreq/20261125-153012-todo-due-date.md</span></pre>
+          </div>
+          <p>只有一份 <code>done</code> 的文件時, 不用給路徑. 第一則訊息一定以 <code>Closing:</code> 開頭, 讓你確認它要關閉哪一份.</p>
+          <p>你可以在同一個 session 執行, 也可以開新的 session. close 只依照現在讀到的文件和程式碼判斷, 不依照對話記憶.</p>
+        </li>
+        <li>
+          <div class="step-title">觀察稽核</div>
+          <p>close 讀文件和文件引用的每個檔案. 然後對 Goal, 每個 <code>### Dn:</code> 和每個打勾的 task 判斷: 完成, 部分完成, 做法不同, 或缺少, 並附上 <code>path:line</code>.</p>
+          <p>文件是 <code>done</code>, 而且 Handoff 寫了驗證方法時, close 不會重跑測試. 它會在報告裡說明這件事, 但不會把它稱為「通過」.</p>
+          <div class="callout watch">
+            <span class="callout-label">觀察重點</span>
+            <p>close 的檢查不能改到真實資料. 需要執行會寫入檔案的檢查時, 它會改用新的路徑. 這個專案的 <code>TODO_FILE</code> 環境變數剛好可以做到. 觀察 agent 有沒有使用它.</p>
+          </div>
+        </li>
+        <li>
+          <div class="step-title">處理 finding (如果有)</div>
+          <p>程式碼和文件不一致時, close 每個 finding 問一次: 引用文件的那一行, 說明程式碼的實際行為, 然後給你兩個選項:</p>
+          <div class="ask reveal" data-pick="0">
+            <div class="ask-head"><span class="ask-chip">Finding</span><span class="ask-src">AskUserQuestion</span></div>
+            <div class="ask-q">D2 寫「過期在行尾標示 (過期)」. 程式碼在已完成的待辦也顯示了 (過期). 要怎麼處理?</div>
+            <ol>
+              <li><span class="opt-label">接受程式碼</span><span class="opt-desc">把差異當成接受的偏離, 寫進報告.</span></li>
+              <li><span class="opt-label">修正程式碼</span><span class="opt-desc">把 finding 交給 mreq-apply 修正. 文件不會被刪除.</span></li>
+            </ol>
+          </div>
+        </li>
+        <li>
+          <div class="step-title">刪除與報告</div>
+          <p>所有問題都回答後, close 用 script 的 <code>delete</code> 刪除文件. 刪除之前, 它會先收集 <code>## Open</code> 的項目, 因為檔案刪除後就沒有地方保存它們. 報告會列出: 刪除了什麼, 稽核結果, 接受的偏離, 以及後續事項.</p>
+          <div class="term animate">
+            <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">mreq-demo</span></div>
+            <pre><span class="line cmd">git status --short</span><span class="line out"> D .mreq/20261125-153012-todo-due-date.md</span></pre>
+          </div>
+          <p>如果你在步驟 E commit 過, git 歷史仍然保有這份文件. 沒有 commit 的話, 文件就永久消失.</p>
+        </li>
+      </ol>
+      <h3>Demo 2 檢查清單</h3>
+      <ul class="checklist" data-store="demo2">
+        <li><label><input type="checkbox"><span>訪談問題提到了具體的檔案或欄位, 不是泛泛的問題.</span></label></li>
+        <li><label><input type="checkbox"><span><code>.mreq/</code> 下出現文件, status 是 <code>draft</code>.</span></label></li>
+        <li><label><input type="checkbox"><span>grill 分四個象限回報, 而且找到 (或你指出了) 時區問題.</span></label></li>
+        <li><label><input type="checkbox"><span>grill 確認後, 文件的 Decisions, Assumptions, Tasks 有變更.</span></label></li>
+        <li><label><input type="checkbox"><span>apply 第一則訊息是 <code>progress</code> 的輸出.</span></label></li>
+        <li><label><input type="checkbox"><span>每個 task 打勾前都執行了指令, Handoff 每次都更新.</span></label></li>
+        <li><label><input type="checkbox"><span>(選用) 你在 close 之前 commit 了程式碼和文件.</span></label></li>
+        <li><label><input type="checkbox"><span>close 的第一行是 <code>Closing:</code>, 最後文件被刪除.</span></label></li>
+      </ul>
+    </section>
+
+    <section class="chapter prose" id="demo3" data-title="Demo 3: 修 bug">
+      <div class="demo-head">
+        <div class="demo-no">3</div>
+        <div>
+          <div class="kicker">DEMO 3 · ISSUE · 約 8 分鐘</div>
+          <h2>修 bug: 重複的 id</h2>
+          <span class="demo-cmd">/mreq-define done 3 會同時勾掉兩筆</span>
+        </div>
+      </div>
+      <p>這個 Demo 觀察 mreq 處理 bug 的方式. issue 類型有更嚴格的規則: 先重現, 再確認根因, 修的是原因而不是症狀.</p>
+      <ol class="steps">
+        <li>
+          <div class="step-title">先自己重現 bug</div>
+          <p>為了不改到 <code>todo.json</code>, 這裡用 <code>TODO_FILE</code> 指向一個暫存檔. 以下是實際執行的輸出:</p>
+          <div class="term animate" data-copy data-shells>
+            <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">mreq-demo</span></div>
+            <pre data-shell="bash"><span class="line cmd">export TODO_FILE=repro.json</span><span class="line cmd">npm run todo -- add A</span><span class="line out">已新增 [ ]   1  A</span><span class="line cmd">npm run todo -- add B</span><span class="line out">已新增 [ ]   2  B</span><span class="line cmd">npm run todo -- rm 1</span><span class="line out">已刪除 #1</span><span class="line cmd">npm run todo -- add C</span><span class="line out">已新增 [ ]   <span class="hl">2</span>  C</span><span class="line cmd">npm run todo -- done 2</span><span class="line out">已完成 #2</span><span class="line cmd">npm run todo -- list --all</span><span class="line out">[x]   <span class="hl">2</span>  B</span><span class="line out">[x]   <span class="hl">2</span>  C</span><span class="line cmd">rm repro.json; unset TODO_FILE</span></pre>
+            <pre data-shell="powershell"><span class="line cmd">$env:TODO_FILE = "repro.json"</span><span class="line cmd">npm run todo -- add A</span><span class="line out">已新增 [ ]   1  A</span><span class="line cmd">npm run todo -- add B</span><span class="line out">已新增 [ ]   2  B</span><span class="line cmd">npm run todo -- rm 1</span><span class="line out">已刪除 #1</span><span class="line cmd">npm run todo -- add C</span><span class="line out">已新增 [ ]   <span class="hl">2</span>  C</span><span class="line cmd">npm run todo -- done 2</span><span class="line out">已完成 #2</span><span class="line cmd">npm run todo -- list -- --all</span><span class="line out">[x]   <span class="hl">2</span>  B</span><span class="line out">[x]   <span class="hl">2</span>  C</span><span class="line cmd">Remove-Item repro.json; Remove-Item Env:TODO_FILE</span></pre>
+          </div>
+          <p>只想用範例資料重現的話, 執行 <code>npm run todo -- done 3</code>, 再執行 <code data-shell="powershell">npm run todo -- list -- --all</code><code data-shell="bash">npm run todo -- list --all</code>: 兩筆 <code>#3</code> 都會被勾掉. 結束後執行 <code>npm run seed</code> 還原.</p>
+        </li>
+        <li>
+          <div class="step-title">輸入指令</div>
+          <div class="term">
+            <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">claude · mreq-demo</span><button class="term-btn" type="button" data-copy-text="/mreq-define done 3 會同時勾掉兩筆">複製</button></div>
+            <pre><span class="line agent">/mreq-define done 3 會同時勾掉兩筆</span></pre>
+          </div>
+        </li>
+        <li>
+          <div class="step-title">觀察分類與訪談</div>
+          <p>「應該 X 但是 Y」的描述代表行為錯誤, 所以 agent 會判斷為 <strong>issue</strong>. issue 的訪談順序是: 確切的重現步驟, 預期與實際, 從什麼時候開始, 影響到誰.</p>
+          <p>重現步驟只有你知道時, agent 會請你輸入. 但它通常也會把自己的猜測當成選項提供. 把上一步的指令貼進文字欄即可.</p>
+          <div class="ask reveal" data-pick="0">
+            <div class="ask-head"><span class="ask-chip">舊資料</span><span class="ask-src">AskUserQuestion</span></div>
+            <div class="ask-q">todo.json 裡已經有重複的 id. 修正 bug 之後, 這些舊資料要怎麼處理?</div>
+            <ol>
+              <li><span class="opt-label">讀取時不處理<span class="rec">(Recommended)</span></span><span class="opt-desc">只修新增的邏輯. 舊的重複資料列為 Follow-up.</span></li>
+              <li><span class="opt-label">提供修復指令</span><span class="opt-desc">增加一個指令, 重新編號重複的待辦.</span></li>
+              <li><span class="opt-label">之後再決定</span><span class="opt-desc">寫進 Open, 不影響修正 bug.</span></li>
+            </ol>
+          </div>
+          <div class="callout watch">
+            <span class="callout-label">觀察重點</span>
+            <p>這是這個 Demo 最有價值的問題: 修了 bug, 已經重複的資料也不會自己變好. 觀察 agent 有沒有主動問. 推薦的選項取決於 agent 的判斷, 可能和上面不同.</p>
+          </div>
+        </li>
+        <li>
+          <div class="step-title">觀察 issue 文件</div>
+          <p>issue 模板有固定的 tasks. agent 會保留它們:</p>
+          <div class="term">
+            <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">.mreq/…-duplicate-id.md (節錄)</span></div>
+            <pre><span class="line hl">## Symptom</span><span class="line">- Repro: add A, add B, rm 1, add C, done 2</span><span class="line">- Expected: 只有 C 被標記完成</span><span class="line">- Actual: B 和 C 都被標記完成</span><span class="line"> </span><span class="line hl">## Root Cause</span><span class="line">Not verified yet: id 用 todos.length + 1 產生</span><span class="line"> </span><span class="line hl">## Tasks</span><span class="line">- [ ] 1. Reproduce the bug with the Repro above</span><span class="line">- [ ] 2. Confirm the root cause</span><span class="line">- [ ] 3. Fix, and show the Repro now passes</span><span class="line">- [ ] 4. Run the related tests</span></pre>
+          </div>
+          <p>注意 <code>## Root Cause</code>: 驗證之前, 它一定寫成 <code>Not verified yet: &lt;假設&gt;</code>.</p>
+        </li>
+        <li>
+          <div class="step-title">確認重述, 選「寫文件, 然後實作」</div>
+          <p>想再練習一次 grill 也可以選 grill. 這裡直接進入 apply, 觀察 issue 的規則.</p>
+        </li>
+        <li>
+          <div class="step-title">觀察 apply 的 issue 規則</div>
+          <ul>
+            <li><strong>先重現</strong>: 修改程式碼之前, agent 會執行 Repro, 確認 bug 存在.</li>
+            <li><strong>確認根因</strong>: 只有在 <code>## Root Cause</code> 寫入已驗證的原因和驗證方法後, 才開始修. 根因是 <code>src/todo.ts:16</code> 的 <code>todos.length + 1</code>.</li>
+            <li><strong>修原因, 不修症狀</strong>: 正確的修法是改變 id 的產生方式 (例如用現有最大的 id 加 1). 讓 <code>done</code> 只勾第一筆, 是修症狀.</li>
+            <li><strong>證明測試抓得到 bug</strong>: agent 可能會暫時還原修正, 確認新測試會失敗, 再恢復修正.</li>
+            <li><strong>兩次修正失敗就停止</strong>: 這代表根因可能是錯的. agent 會說明, 然後重新驗證根因.</li>
+          </ul>
+        </li>
+        <li>
+          <div class="step-title">(選用) commit, 然後 close</div>
+          <p>和 Demo 2 一樣. 注意 issue 的 close 一定會重跑 <code>## Symptom</code> 的 Repro, 即使 apply 已經驗證過. 原因: Repro 證明的是目標本身.</p>
+        </li>
+      </ol>
+      <h3>Demo 3 檢查清單</h3>
+      <ul class="checklist" data-store="demo3">
+        <li><label><input type="checkbox"><span>agent 判斷為 issue, 使用 issue 模板.</span></label></li>
+        <li><label><input type="checkbox"><span>agent 問了舊的重複資料要怎麼處理.</span></label></li>
+        <li><label><input type="checkbox"><span>修改程式碼之前, agent 先執行了 Repro.</span></label></li>
+        <li><label><input type="checkbox"><span><code>## Root Cause</code> 從 <code>Not verified yet</code> 變成已驗證.</span></label></li>
+        <li><label><input type="checkbox"><span>修正的是 id 的產生方式, 而且有新測試.</span></label></li>
+      </ul>
+    </section>
+
+    <section class="chapter prose" id="usage" data-title="依情境選流程">
+      <div class="kicker">04 · 實際應用</div>
+      <h2>依情境選流程</h2>
+      <p>不是每件事都要走完整流程. 下表幫你選擇:</p>
+      <table>
+        <thead><tr><th>情境</th><th>流程</th></tr></thead>
+        <tbody>
+          <tr><td>需求明確, 改動小</td><td><code>/mreq-define</code> → 直接實作</td></tr>
+          <tr><td>跨多個檔案, 或要分多個 session</td><td>define → grill → apply → (commit) → close</td></tr>
+          <tr><td>只有模糊的想法, 缺少術語</td><td><code>/mreq-terms</code> → <code>/mreq-pro</code> → <code>/mreq-define</code> (不給需求)</td></tr>
+          <tr><td>看不懂現有的程式碼</td><td><code>/mreq-how</code> (加 <code>--plain</code> 給 PM)</td></tr>
+          <tr><td>要把流程或架構畫成圖</td><td><code>/mreq-graph</code></td></tr>
+        </tbody>
+      </table>
+      <h3>延伸練習</h3>
+      <ul>
+        <li>執行 <code>/mreq-how done 指令怎麼找到要完成的待辦?</code>, 打開 <code>.mreq/how/</code> 下產生的 HTML.</li>
+        <li>執行 <code>/mreq-grill &lt;path&gt; 錯誤處理</code>: 四象限仍然全部掃描, 但錯誤處理會問得更深, 而且先回報.</li>
+        <li>執行 <code>/mreq-terms 我想讓待辦可以重複</code>, 然後輸入 <code>/mreq-define</code> 不給需求, 觀察它怎麼使用術語.</li>
+      </ul>
+    </section>
+
+    <section class="chapter prose" id="faq" data-title="疑難排解與重置">
+      <div class="kicker">05 · 疑難排解</div>
+      <h2>疑難排解與重置</h2>
+      <h4>agent 說啟動目錄不是 git root, 然後停止</h4>
+      <p>離開 Claude Code, 用 <code>cd</code> 進入 <code>mreq-demo</code>, 再執行 <code>claude</code>.</p>
+      <h4>指令被拒絕 (denied)</h4>
+      <p>mreq 不會換一種方式重試. 它會列出被拒絕的指令和對應的 allow rule, 例如 <code>Bash(uv run *mreq.py*)</code>, 然後停止. 用 <code>/permissions</code> 加入這條規則, 再重新執行.</p>
+      <h4>沒有安裝 uv</h4>
+      <p>skill 會自動改用 <code>python</code>, 找不到時再用 <code>python3</code>. 同一個對話只會切換一次.</p>
+      <h4>找不到 <code>/mreq-define</code></h4>
+      <ol>
+        <li>確認你在 <code>mreq-demo</code> 目錄執行了 <code>npx skills add</code>, 而且有加 <code>-a claude-code</code>.</li>
+        <li>確認 <code>.claude/skills/mreq-define/SKILL.md</code> 存在.</li>
+        <li>離開 Claude Code, 再重新執行 <code>claude</code>.</li>
+      </ol>
+      <h4>agent 自己讀了 SKILL.md 並開始執行</h4>
+      <p>define 和 close 設定了 <code>disable-model-invocation</code>. 在 Claude Code 中, agent 不會自動執行它們. 其他 agent 可能不讀這個設定.</p>
+      <h3 id="reset">重置 demo</h3>
+      <p>每個 Demo 之間可以重置到初始狀態. 下面的指令來自 README, 但 <code>git clean</code> 多了幾個 <code>-e</code>. 原因: <code>-x</code> 會刪除所有未追蹤的檔案, 包括安裝的 skill. 這幾個 <code>-e</code> 保留 skill.</p>
+      <div class="term" data-copy>
+        <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="title">mreq-demo</span></div>
+        <pre><span class="line cmd">git reset --hard start</span><span class="line cmd">git clean -fdx -e node_modules -e .claude -e .agents -e skills-lock.json</span><span class="line cmd">npm run seed</span></pre>
+      </div>
+      <div class="callout warn">
+        <span class="callout-label">注意</span>
+        <p>這些指令會刪除所有未 commit 的修改和未追蹤的檔案 (安裝的 skill 除外), 包括 <code>.mreq/</code> 下的文件. <code>start</code> 是起點的 git tag. 要保留成果, 先在其他 branch commit.</p>
+      </div>
+    </section>
+
+    <section class="chapter prose" id="takeaway" data-title="結語">
+      <div class="kicker">TAKEAWAY</div>
+      <h2>讓 agent 先問, 再做.</h2>
+      <p>你在這份指南觀察到的每一個機制, 都在處理同一個問題: 沒說出口的決策.</p>
+      <ul>
+        <li><strong>重述與確認</strong>: 讓你在寫程式之前看到 agent 的理解.</li>
+        <li><strong>四象限 grill</strong>: 找出你自己也沒想到的前提和盲點.</li>
+        <li><strong>文件與 Handoff</strong>: 讓下一個 session, 下一個 agent, 甚至下一個人都能接續工作.</li>
+        <li><strong>close 的稽核</strong>: 只依照文件和程式碼判斷, 不依照對話記憶.</li>
+      </ul>
+      <div class="callout warn">
+        <span class="callout-label">最後提醒</span>
+        <p><code>/mreq-close</code> 核對通過後會直接刪除文件. 要保留內容, 先 commit.</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer class="foot">mreq-demo · how-to.html · 範例中的 agent 文字為示意, 實際內容會依對話而不同.</footer>
+
+<script>
+(() => {
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const chapters = [...document.querySelectorAll('section.chapter')];
+
+  const buildToc = (list) => {
+    chapters.forEach((section) => {
+      const item = document.createElement('li');
+      const link = document.createElement('a');
+      link.href = `#${section.id}`;
+      link.textContent = section.dataset.title;
+      link.dataset.target = section.id;
+      item.append(link);
+      list.append(item);
+    });
+  };
+  buildToc(document.getElementById('toc-list'));
+  buildToc(document.getElementById('small-toc-list'));
+
+  const tocLinks = [...document.querySelectorAll('#toc-list a')];
+  const progressBar = document.getElementById('progress');
+
+  const updateScroll = () => {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    progressBar.style.width = `${max > 0 ? (window.scrollY / max) * 100 : 0}%`;
+    const marker = window.innerHeight * 0.3;
+    let current = chapters[0].id;
+    chapters.forEach((section) => {
+      if (section.getBoundingClientRect().top <= marker) current = section.id;
+    });
+    tocLinks.forEach((link) => link.classList.toggle('active', link.dataset.target === current));
+  };
+  window.addEventListener('scroll', updateScroll, { passive: true });
+  window.addEventListener('resize', updateScroll);
+  updateScroll();
+
+  document.querySelectorAll('.term .line.cmd').forEach((line) => {
+    line.dataset.text = line.textContent;
+  });
+
+  const isVisible = (element) => element.offsetParent !== null;
+
+  const playTerminal = (term) => {
+    const allLines = [...term.querySelectorAll('.line')];
+    term.dataset.run = String(Number(term.dataset.run || 0) + 1);
+    const run = term.dataset.run;
+    allLines.forEach((line) => {
+      if (line.dataset.full === undefined) line.dataset.full = line.innerHTML;
+      line.innerHTML = line.dataset.full;
+      line.classList.toggle('shown', reduceMotion);
+    });
+    if (reduceMotion) return;
+    const lines = allLines.filter((line) => isVisible(line.closest('pre')));
+    let index = 0;
+    const next = () => {
+      if (term.dataset.run !== run || index >= lines.length) return;
+      const line = lines[index];
+      index += 1;
+      if (!line.classList.contains('cmd')) {
+        line.classList.add('shown');
+        setTimeout(next, 220);
+        return;
+      }
+      const text = line.textContent;
+      line.textContent = '';
+      line.classList.add('shown');
+      const caret = document.createElement('span');
+      caret.className = 'caret';
+      let typed = 0;
+      const type = () => {
+        if (term.dataset.run !== run) return;
+        typed += 1;
+        line.textContent = text.slice(0, typed);
+        line.append(caret);
+        if (typed < text.length) {
+          setTimeout(type, 28);
+          return;
+        }
+        setTimeout(() => {
+          caret.remove();
+          line.innerHTML = line.dataset.full;
+          next();
+        }, 320);
+      };
+      type();
+    };
+    next();
+  };
+
+  const SHELLS = [['powershell', 'PowerShell'], ['bash', 'Bash / zsh']];
+  const shellKey = 'mreq-howto-shell';
+  const shellButtons = [];
+
+  const savedShell = () => {
+    try { return localStorage.getItem(shellKey); } catch { return null; }
+  };
+
+  const setShell = (shell) => {
+    document.body.dataset.shellPref = shell;
+    shellButtons.forEach((button) => {
+      const active = button.dataset.setShell === shell;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+  };
+
+  const chooseShell = (shell) => {
+    setShell(shell);
+    try { localStorage.setItem(shellKey, shell); } catch { }
+    document.querySelectorAll('.term.animate[data-shells].in-view').forEach(playTerminal);
+  };
+
+  const makeShellTabs = () => {
+    const group = document.createElement('div');
+    group.className = 'shell-tabs';
+    SHELLS.forEach(([id, label]) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'shell-tab';
+      button.dataset.setShell = id;
+      button.textContent = label;
+      button.addEventListener('click', () => chooseShell(id));
+      shellButtons.push(button);
+      group.append(button);
+    });
+    return group;
+  };
+
+  document.querySelectorAll('.shell-switch').forEach((slot) => slot.append(makeShellTabs()));
+  document.querySelectorAll('.term[data-shells] .term-bar').forEach((bar) => {
+    bar.querySelector('.title').after(makeShellTabs());
+  });
+  const knownShell = SHELLS.some(([id]) => id === savedShell());
+  setShell(knownShell ? savedShell() : navigator.userAgent.includes('Windows') ? 'powershell' : 'bash');
+
+  document.querySelectorAll('.term.animate').forEach((term) => {
+    const bar = term.querySelector('.term-bar');
+    const replay = document.createElement('button');
+    replay.type = 'button';
+    replay.className = 'term-btn';
+    replay.textContent = '重播';
+    replay.addEventListener('click', () => playTerminal(term));
+    bar.append(replay);
+  });
+
+  const copyText = async (button, text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      button.textContent = '已複製';
+    } catch {
+      button.textContent = '無法複製';
+    }
+    setTimeout(() => { button.textContent = '複製'; }, 1400);
+  };
+
+  document.querySelectorAll('.term[data-copy]').forEach((term) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'term-btn';
+    button.textContent = '複製';
+    button.addEventListener('click', () => {
+      const commands = [...term.querySelectorAll('pre')]
+        .filter(isVisible)
+        .flatMap((pre) => [...pre.querySelectorAll('.line.cmd')].map((line) => line.dataset.text));
+      copyText(button, commands.join('\n'));
+    });
+    term.querySelector('.term-bar').append(button);
+  });
+
+  document.querySelectorAll('[data-copy-text]').forEach((button) => {
+    button.addEventListener('click', () => copyText(button, button.dataset.copyText));
+  });
+
+  const pickOption = (ask) => {
+    const options = ask.querySelectorAll('li');
+    const target = options[Number(ask.dataset.pick || 0)];
+    if (!target) return;
+    setTimeout(() => target.classList.add('picked'), reduceMotion ? 0 : 900);
+  };
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      const element = entry.target;
+      element.classList.add('in-view');
+      if (element.classList.contains('animate')) playTerminal(element);
+      if (element.classList.contains('ask')) pickOption(element);
+      observer.unobserve(element);
+    });
+  }, { threshold: 0.25 });
+
+  document.querySelectorAll('.reveal, .quads.reveal-stagger, .term.animate, .ask, .steps > li').forEach((element) => observer.observe(element));
+
+  const flowNodes = [...document.querySelectorAll('#flow .node')];
+  const flowDetail = document.getElementById('flow-detail');
+  const flowToggle = document.getElementById('flow-toggle');
+  let flowIndex = 0;
+  let flowTimer = null;
+
+  const showNode = (index) => {
+    flowIndex = index;
+    flowNodes.forEach((node, i) => node.classList.toggle('active', i === index));
+    flowDetail.innerHTML = `<div class="fade">${flowNodes[index].dataset.detail}</div>`;
+  };
+
+  const stopFlow = () => {
+    clearInterval(flowTimer);
+    flowTimer = null;
+    flowToggle.textContent = '播放';
+  };
+
+  const startFlow = () => {
+    if (reduceMotion) return;
+    stopFlow();
+    flowToggle.textContent = '暫停';
+    flowTimer = setInterval(() => showNode((flowIndex + 1) % flowNodes.length), 3600);
+  };
+
+  flowNodes.forEach((node, index) => node.addEventListener('click', () => {
+    stopFlow();
+    showNode(index);
+  }));
+  flowToggle.addEventListener('click', () => (flowTimer ? stopFlow() : startFlow()));
+  showNode(0);
+  if (reduceMotion) flowToggle.textContent = '播放'; else startFlow();
+
+  const esc = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const frontMatter = (status, updated) => [
+    '---',
+    'title: "待辦加上到期日"',
+    'desc: "add 可以設定到期日, list 標示已過期的待辦"',
+    'date: "2026-11-25 15:30:12"',
+    'schema: "feature"',
+    `status: "${status}"`,
+    `updated: "${updated}"`,
+    '---',
+  ];
+
+  const stages = [
+    {
+      note: '<strong>define 後</strong>: status 是 draft. 訪談的結論分別寫進 Goal, Scope, Decisions. agent 推測的事寫在 Assumptions, 並標示為猜測. Handoff 指出第一個 task.',
+      lines: [
+        ...frontMatter('draft', '2026-11-25 15:30:12').map((t) => ['fm', t]),
+        ['h', '# 待辦加上到期日'], ['', ''],
+        ['h', '## Goal'], ['', 'add 可以用 --due YYYY-MM-DD 設定到期日; list 在過期的待辦後面標示 (過期).'], ['', ''],
+        ['h', '## Scope'], ['', '- In: add --due; Todo 新增選填欄位 due; list 標示過期'], ['', '- Out: 修改到期日, 提醒通知'], ['', ''],
+        ['h', '## Context'], ['', '- Todo 只有 id, title, done, createdAt (src/todo.ts:1)'], ['', '- formatTodo 負責單行輸出 (src/todo.ts:45)'], ['', ''],
+        ['h', '## Assumptions'], ['', '- 猜測: 「今天」以本地時區為準'], ['', ''],
+        ['h', '## Decisions'], ['', '### D1: 日期格式用 YYYY-MM-DD'], ['', '只到日期, 不含時間. 排除: 完整 ISO 8601 時間 (輸入太長).'], ['', '### D2: 過期在行尾標示 (過期)'], ['', '排除: 改用顏色 (輸出到檔案時會變成亂碼).'], ['', ''],
+        ['h', '## Tasks'], ['', '- [ ] 1. Todo 加上選填的 due 欄位; 檢查: npm run typecheck'], ['', '- [ ] 2. add 支援 --due, 拒絕無效日期; 檢查: 新增測試'], ['', '- [ ] 3. formatTodo 標示過期; 檢查: 新增測試'], ['', '- [ ] 4. 執行 npm test 與 npm run typecheck'], ['', ''],
+        ['h', '## Open'], ['', '- Open: 過期的待辦要不要排在前面?'], ['', ''],
+        ['h', '## Handoff'], ['', '尚未開始. 第一個 task: 1.'],
+      ],
+    },
+    {
+      note: '<strong>grill 後</strong>: 時區的猜測被確認, 從 Assumptions 變成 D3. 新增舊資料相容的 task. Open 的排序問題被回答, 寫進 D4 並從 Open 移除. status 仍然是 draft, 只有 updated 改變.',
+      lines: [
+        ...frontMatter('draft', '2026-11-25 15:41:08').map((t, i) => [i === 6 ? 'fm chg' : 'fm', t]),
+        ['h', '# 待辦加上到期日'], ['', ''],
+        ['h', '## Goal'], ['', 'add 可以用 --due YYYY-MM-DD 設定到期日; list 在過期的待辦後面標示 (過期).'], ['', ''],
+        ['h', '## Scope'], ['', '- In: add --due; Todo 新增選填欄位 due; list 標示過期'], ['chg', '- Out: 修改到期日, 提醒通知, 依到期日排序'], ['', ''],
+        ['h', '## Context'], ['', '- Todo 只有 id, title, done, createdAt (src/todo.ts:1)'], ['chg', '- createdAt 存 UTC (src/todo.ts:19); 範例資料有 UTC 16:30 的待辦'], ['', ''],
+        ['h', '## Assumptions'], ['chg', '- 猜測: 使用者不會在不同時區的電腦之間共用 todo.json'], ['', ''],
+        ['h', '## Decisions'], ['', '### D1: 日期格式用 YYYY-MM-DD'], ['', '### D2: 過期在行尾標示 (過期)'], ['chg', '### D3: 「今天」以本地時區計算'], ['chg', 'CLI 在使用者的電腦執行. 排除: 用 UTC 計算 (台灣凌晨會判斷錯誤).'], ['chg', '### D4: 不改變排序'], ['chg', '維持 id 順序. 排除: 過期排前面 (使用者選擇不要).'], ['', ''],
+        ['h', '## Tasks'], ['', '- [ ] 1. Todo 加上選填的 due 欄位; 檢查: npm run typecheck'], ['chg', '- [ ] 2. 沒有 due 的舊資料正常顯示; 檢查: 新增測試'], ['', '- [ ] 3. add 支援 --due, 拒絕無效日期; 檢查: 新增測試'], ['chg', '- [ ] 4. formatTodo 以本地時區判斷過期; 檢查: 測試固定 now'], ['', '- [ ] 5. 執行 npm test 與 npm run typecheck'], ['', ''],
+        ['h', '## Open'], ['dim chg', '(空白: 排序的問題已經回答, 移到 D4)'], ['', ''],
+        ['h', '## Handoff'], ['', '尚未開始. 第一個 task: 1.'],
+      ],
+    },
+    {
+      note: '<strong>apply 進行中</strong>: status 變成 active. task 1, 2 已打勾. 因為中斷過, task 3 下方有 Resume 那一行. Handoff 說明做了什麼, 怎麼驗證, 下一步是什麼.',
+      lines: [
+        ...frontMatter('active', '2026-11-25 15:58:44').map((t, i) => [i === 5 || i === 6 ? 'fm chg' : 'fm', t]),
+        ['h', '# 待辦加上到期日'], ['', ''],
+        ['dim', '(Goal, Scope, Context, Assumptions, Decisions 不變, 此處省略)'], ['', ''],
+        ['h', '## Tasks'], ['tick', '- [x] 1. Todo 加上選填的 due 欄位; 檢查: npm run typecheck'], ['tick', '- [x] 2. 沒有 due 的舊資料正常顯示; 檢查: 新增測試'], ['', '- [ ] 3. add 支援 --due, 拒絕無效日期; 檢查: 新增測試'], ['chg', '  - Resume: cli.ts 已加上 --due 參數 (只在工作目錄); 還沒驗證日期; 下一步: 在 addTodo 驗證並加測試'], ['', '- [ ] 4. formatTodo 以本地時區判斷過期; 檢查: 測試固定 now'], ['', '- [ ] 5. 執行 npm test 與 npm run typecheck'], ['', ''],
+        ['h', '## Open'], ['', ''],
+        ['h', '## Handoff'], ['chg', 'task 1, 2 完成. 驗證: npm run typecheck 通過, npm test 11/11 通過.'], ['chg', '使用者中斷了 task 3. 下一步: 依照 task 3 的 Resume 接續.'],
+      ],
+    },
+    {
+      note: '<strong>apply 完成</strong>: 全部打勾, 測試通過後 status 才變成 done. Handoff 寫明驗證方法. close 看到這一段, 就知道 apply 已經跑過測試.',
+      lines: [
+        ...frontMatter('done', '2026-11-25 16:12:30').map((t, i) => [i === 5 || i === 6 ? 'fm chg' : 'fm', t]),
+        ['h', '# 待辦加上到期日'], ['', ''],
+        ['dim', '(Goal, Scope, Context, Assumptions, Decisions 不變, 此處省略)'], ['', ''],
+        ['h', '## Tasks'], ['tick', '- [x] 1. Todo 加上選填的 due 欄位; 檢查: npm run typecheck'], ['tick', '- [x] 2. 沒有 due 的舊資料正常顯示; 檢查: 新增測試'], ['tick chg', '- [x] 3. add 支援 --due, 拒絕無效日期; 檢查: 新增測試'], ['tick chg', '- [x] 4. formatTodo 以本地時區判斷過期; 檢查: 測試固定 now'], ['tick chg', '- [x] 5. 執行 npm test 與 npm run typecheck'], ['', ''],
+        ['h', '## Open'], ['', ''],
+        ['h', '## Handoff'], ['chg', '完成. 驗證: npm test 15/15 通過, npm run typecheck 通過.'], ['chg', '下一步: 執行 /mreq-close. 要保留文件, 先 commit.'],
+      ],
+    },
+  ];
+
+  const docBody = document.getElementById('doc-body');
+  const docNote = document.getElementById('doc-note');
+  const docTabs = [...document.querySelectorAll('.doc-tab')];
+  let docStage = 0;
+  let docTimer = null;
+
+  const renderStage = (index) => {
+    docStage = index;
+    docTabs.forEach((tab, i) => tab.classList.toggle('active', i === index));
+    docBody.innerHTML = stages[index].lines
+      .map(([kind, text]) => {
+        const classes = kind.trim();
+        const content = esc(text) || ' ';
+        return classes ? `<span class="${classes}">${content}</span>` : content;
+      })
+      .join('\n');
+    docNote.innerHTML = stages[index].note;
+  };
+
+  const stopDoc = () => {
+    clearInterval(docTimer);
+    docTimer = null;
+  };
+
+  docTabs.forEach((tab, index) => tab.addEventListener('click', () => {
+    stopDoc();
+    renderStage(index);
+  }));
+  renderStage(0);
+
+  const docViewer = document.getElementById('doc-viewer');
+  new IntersectionObserver((entries, self) => {
+    if (!entries[0].isIntersecting || reduceMotion) return;
+    docTimer = setInterval(() => renderStage((docStage + 1) % stages.length), 9000);
+    self.disconnect();
+  }, { threshold: 0.4 }).observe(docViewer);
+  docViewer.addEventListener('mouseenter', stopDoc);
+
+  document.querySelectorAll('.checklist[data-store]').forEach((list) => {
+    const key = `mreq-howto-${list.dataset.store}`;
+    const boxes = [...list.querySelectorAll('input')];
+    let saved = [];
+    try { saved = JSON.parse(localStorage.getItem(key) || '[]'); } catch { saved = []; }
+    boxes.forEach((box, i) => {
+      box.checked = Boolean(saved[i]);
+      box.addEventListener('change', () => {
+        try { localStorage.setItem(key, JSON.stringify(boxes.map((b) => b.checked))); } catch { }
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>
